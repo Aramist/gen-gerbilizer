@@ -88,19 +88,32 @@ def populate_config(config: JSON):
     return config
 
 
-def train(config, logger, model, checkpoint_dir, sample_dir):
+def train(config, logger, model, dataloader, checkpoint_dir, sample_dir):
     logger.info('Starting training:')
     n_epochs = config['num_epochs']
     # How often checkpoints should be saved
     checkpoint_freq = config['checkpoint_frequency']
+    # Keep the latents used for visualization constant to see how
+    # the model's generator evolves for the same input
+    fixed_latents = model.latent_sampler(64)
     for n in range(n_epochs):
         logger.info(f'Training: Epoch {n + 1} of {n_epochs}')
-        model.train_minibatch()
+        data_iter = iter(dataloader)
         
+        losses, epoch_complete = model.train_minibatch(data_iter)
+        minibatch_no = 0
+        while not epoch_complete:
+            logger.info(f'Discriminator losses (minibatch {minibatch_no + 1} of {len(data_iter)}')
+            logger.info(losses['critic_losses'])
+            logger.info(f'Generator losses (minibatch {minibatch_no + 1} of {len(data_iter)}')
+            logger.info(losses['generator_loss'])
+            minibatch_no += 1
+            losses, epoch_complete = model.train_minibatch(data_iter)
+            
         # Generate some samples to see how we are doing
         sample_fname = 'epoch_{:0>3d}_gen_sample.npy'.format(n + 1)
         sample_path = path.join(sample_dir, sample_fname)
-        gen_sample = model.sample_from_generator(4)
+        gen_sample = model.sample_from_generator(64, latent=fixed_latents)
         np.save(sample_path, gen_sample)
 
         # Save model state occasionally
@@ -146,12 +159,12 @@ def run():
         num_workers=2
     )
 
-    model_wrapper = models.GerbilizerGAN(config, dataloader)
+    model_wrapper = models.GerbilizerGAN(config)
     logger.info('Built models:')
     logger.info(str(model_wrapper.generator))
     logger.info(str(model_wrapper.discriminator))
 
-    train(config, model_wrapper, logger, checkpoint_dir, generated_sample_dir)
+    train(config, model_wrapper, logger, dataloader, checkpoint_dir, generated_sample_dir)
 
 
 if __name__ == '__main__':

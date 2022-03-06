@@ -136,9 +136,7 @@ class GerbilizerGAN:
     def __init__(
         self,
         config: JSON,
-        data_loader: DataLoader
     ):
-        self.data_loader = data_loader
         # Lambda in eq. 3 of the paper
         self.gpu = config['device'].lower() == 'gpu'
         self.batch_size = config['batch_size']  # int
@@ -176,15 +174,25 @@ class GerbilizerGAN:
             weight_decay=0
         )
 
-    def train_minibatch(self):
+    def train_minibatch(self, data_iterator):
         self.train()
-        data_iterator = iter(self.data_loader)
-        self._discriminator_training_loop(data_iterator)
+        critic_losses = self._discriminator_training_loop(
+            data_iterator,
+            report_gp_loss_term=True
+        )
 
         gen_loss = self._gen_loss()
         mean_loss = torch.mean(gen_loss)
         mean_loss.backward()
         self.gen_optimizer.step()
+
+        reported_losses = {
+            'critic_losses': critic_losses,
+            'generator_loss': mean_loss.detach().cpu().item()
+        }
+        # If fewer than `critic_steps` iterations were done, then the data loader
+        # exhausted itself in this batch
+        return reported_losses, len(critic_losses) < self.critic_steps
         
     def sample_from_generator(
         self, 
@@ -227,8 +235,8 @@ class GerbilizerGAN:
         report_gp_loss_term: bool=False
     ) -> Optional[list]:
         gp_losses = list()
-        for _ in range(self.critic_steps):
-            x_real = next(data_iterator)
+        # Iterate at most `critic_steps` times through data_iterator
+        for _, x_real in zip(range(self.critic_steps), data_iterator):
             latents = self.latent_sampler(self.batch_size)
             if self.gpu:
                 latents = latents.cuda()
@@ -238,6 +246,8 @@ class GerbilizerGAN:
             gp_losses.append(mean_loss.detach().cpu().item())
             mean_loss.backward()
             self.disc_optimizer.step()
+        if report_gp_loss_term:
+            return gp_losses
     
     def _gen_loss(self):
         """ Implements the first half of the generator training step described on 
