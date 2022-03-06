@@ -199,8 +199,8 @@ class GerbilizerGAN:
         else:
             if not isinstance(latent, Tensor):
                 latent_batch = torch.from_numpy(latent)
-            if self.gpu:
-                latent_batch = latent_batch.cuda()
+        if self.gpu:
+            latent_batch = latent_batch.cuda()
         gen_data = self.generator(latent_batch)
         if as_numpy:
             return gen_data.detach().cpu().numpy()
@@ -229,7 +229,10 @@ class GerbilizerGAN:
         gp_losses = list()
         for _ in range(self.critic_steps):
             x_real = next(data_iterator)
-            x_gen = self.generator(self.latent_sampler(self.batch_size))
+            latents = self.latent_sampler(self.batch_size)
+            if self.gpu:
+                latents = latents.cuda()
+            x_gen = self.generator(latents)
             gp_loss = self._disc_gp_loss(x_real, x_gen)
             mean_loss = torch.mean(gp_loss)
             gp_losses.append(mean_loss.detach().cpu().item())
