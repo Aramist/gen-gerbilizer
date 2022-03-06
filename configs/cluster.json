@@ -1,4 +1,5 @@
 {
     "feather_dir": "/mnt/ceph/users/atanelus/unlabeled_vocalizations/c3",
-    "index_dir": "/mnt/ceph/users/atanelus/unlabeled_vocalizations/c3_idx"
+    "index_dir": "/mnt/ceph/users/atanelus/unlabeled_vocalizations/c3_idx",
+    "device": "gpu"
 }
