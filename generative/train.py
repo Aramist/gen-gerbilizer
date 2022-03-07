@@ -7,6 +7,7 @@ from os import path
 from typing import NewType
 
 import numpy as np
+import torch
 
 from util import dataloaders as loaders, models
 
@@ -167,6 +168,8 @@ def run():
     logging.info(str(model_wrapper.generator))
     logging.info(str(model_wrapper.discriminator))
     logging.info(f"Training on {'gpu' if model_wrapper.gpu else 'cpu'}")
+    if model_wrapper.gpu:
+        logging.info(f"GPU Name: {torch.cuda.get_device_name()}")
 
     train(config, model_wrapper, dataloader, checkpoint_dir, generated_sample_dir)
 
