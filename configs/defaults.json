@@ -14,6 +14,7 @@
     "dimensionality_multiplier": 64,
     "conv_kernel_size": 51,
     "conv_padding_size": 24,
+    "generator_conv_kernel_size": 33,
     "latent_size": 128,
     "latent_prior": "uniform"
 }

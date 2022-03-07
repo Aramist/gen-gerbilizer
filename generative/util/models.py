@@ -111,16 +111,16 @@ class GerbilizerDiscriminator(nn.Module):
 class GeneratorBlock(nn.Module):
     """https://arxiv.org/pdf/1909.11646.pdf ?
     """
-    def __init__(self, in_channels: int):
+    def __init__(self, in_channels: int, filt_size):
         super().__init__()
         self.upsample = nn.Upsample(scale_factor=4)
         self.nonlin = nn.ReLU()
 
         self.convs = nn.ModuleList([
-            nn.Conv1d(in_channels, in_channels // 2, 3, 1, dilation=1, padding='same'),
-            nn.Conv1d(in_channels // 2, in_channels // 2, 3, 1, dilation=2, padding='same'),
-            nn.Conv1d(in_channels // 2, in_channels // 2, 3, 1, dilation=4, padding='same'),
-            nn.Conv1d(in_channels // 2, in_channels // 2, 3, 1, dilation=8, padding='same')
+            nn.Conv1d(in_channels, in_channels // 2, filt_size, 1, dilation=1, padding='same'),
+            nn.Conv1d(in_channels // 2, in_channels // 2, filt_size, 1, dilation=2, padding='same'),
+            nn.Conv1d(in_channels // 2, in_channels // 2, filt_size, 1, dilation=4, padding='same'),
+            nn.Conv1d(in_channels // 2, in_channels // 2, filt_size, 1, dilation=8, padding='same')
         ])
 
         self.skip_conv = nn.Conv1d(in_channels, in_channels // 2, 1)
@@ -165,6 +165,7 @@ class GerbilizerGenerator(nn.Module):
         self.dense = nn.Linear(latent_size, 512 * multiplier)
 
         n_mics = config['num_microphones']
+        filt_size = config['generator_conv_kernel_size']
 
         channel_sizes = [
             32 * multiplier,
@@ -177,9 +178,9 @@ class GerbilizerGenerator(nn.Module):
 
         self.blocks = nn.ModuleList()
         for c_size in channel_sizes:
-            self.blocks.append(GeneratorBlock(c_size))
+            self.blocks.append(GeneratorBlock(c_size, filt_size))
 
-        self.final_conv = nn.Conv1d(multiplier, n_mics, 3, dilation=2, padding='same')
+        self.final_conv = nn.Conv1d(multiplier, n_mics, filt_size, dilation=2, padding='same')
     
     def forward(self, z: Tensor) -> Tensor:
         starting_audio = self.dense(z)
