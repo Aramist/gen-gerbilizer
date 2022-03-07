@@ -11,8 +11,8 @@
     "adam_beta_1": 0.5,
     "adam_beta_2": 0.9,
 
-    "dimensionality_multiplier": 64,
+    "dimensionality_multiplier": 128,
     "conv_kernel_size": 25,
     "latent_size": 128,
-    "latent_prior": "normal"
+    "latent_prior": "uniform"
 }
