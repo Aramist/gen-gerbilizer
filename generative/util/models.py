@@ -11,7 +11,7 @@ from torch.optim import Adam
 from torch.utils.data import DataLoader
 
 
-JSON = NewType(dict)
+JSON = NewType('JSON', dict)
 EPS = 1e-12
 
 
@@ -27,14 +27,13 @@ def _phase_shuffle(audio_tensor, n):
         # Shift samples to the left
         shifted[..., :-n] = audio_tensor[..., n:]
         filler = audio_tensor[..., -n-1:-1]
-        shifted[..., -n:] = audio_tensor[..., n:]
         # Mirror the filler values
-        shifted[..., -n:] = filler[..., ::-1]
+        shifted[..., -n:] = torch.flip(filler, dims=(2,))
     else:
         # Shift samples to the right
         shifted[..., n:] = audio_tensor[..., :-n]
         filler = audio_tensor[..., 1:n+1]
-        shifted[..., :n] = filler[..., ::-1]
+        shifted[..., :n] = torch.flip(filler, dims=(2,))
     
     return shifted
 
@@ -44,6 +43,7 @@ class GerbilizerDiscriminator(nn.Module):
         self, 
         config: JSON
     ):
+        super().__init__()
         n_mics = config['num_microphones']
         multiplier = config['dimensionality_multiplier']
 
@@ -66,6 +66,7 @@ class GerbilizerDiscriminator(nn.Module):
                     in_channels,
                     out_channels,
                     kernel_size=kernel_size,
+                    padding=11,
                     stride=4
                 )
             )
@@ -78,7 +79,7 @@ class GerbilizerDiscriminator(nn.Module):
         for n, conv in enumerate(self.convs):
             working_audio = conv(working_audio)
             working_audio = self.nonlin(working_audio)
-            if n < len(self.convs - 1):
+            if n < len(self.convs) - 1:
                 working_audio = _phase_shuffle(working_audio, 2)
         reshaped = self.flatten(working_audio)
         output = self.dense(reshaped)
@@ -93,6 +94,7 @@ class GerbilizerGenerator(nn.Module):
         """ Inspired by the WaveGAN architecture:
         https://arxiv.org/pdf/1802.04208.pdf
         """
+        super().__init__()
         latent_size = config['latent_size']
         # Ensures the number of channels used is divisible by 256
         multiplier = config['dimensionality_multiplier']
@@ -117,6 +119,8 @@ class GerbilizerGenerator(nn.Module):
                     in_channels=in_channels,
                     out_channels=out_channels,
                     kernel_size=kernel_size,
+                    padding=11,
+                    output_padding=1,
                     stride=4
                 )
             )
@@ -124,11 +128,11 @@ class GerbilizerGenerator(nn.Module):
     def forward(self, z: Tensor) -> Tensor:
         starting_audio = self.dense(z)
         # I think tensor.view might be applicable here
-        working_audio = z.reshape((-1, self.starting_channels, 16))
+        working_audio = starting_audio.reshape((-1, self.starting_channels, 16))
         for tlayer in self.tconvs:
             rectified = F.relu(working_audio)
             working_audio = tlayer(rectified)
-        output = F.tanh(working_audio)
+        output = torch.tanh(working_audio)
         return output
 
 
@@ -148,7 +152,7 @@ class GerbilizerGAN:
         if latent_prior_type == 'normal':
             # Assuming a spherical gaussian, so all variables in z are independent
             self.latent_sampler = lambda n: torch.randn((n, self.latent_size))
-        if latent_prior_type == 'uniform':
+        elif latent_prior_type == 'uniform':
             self.latent_sampler = lambda n: torch.rand((n, self.latent_size,)) * 2 - 1
         else:
             raise ValueError(f'Unsupported prior distribution: {latent_prior_type}.')
@@ -173,6 +177,18 @@ class GerbilizerGAN:
             betas=betas,
             weight_decay=0
         )
+    
+    def train(self):
+        """ Relays the shift to the training state to both child models
+        """
+        self.discriminator.train()
+        self.generator.train()
+    
+    def eval(self):
+        """ Relays the shift to the evaluative state to both child models
+        """
+        self.discriminator.eval()
+        self.generator.eval()
 
     def train_minibatch(self, data_iterator):
         self.train()
@@ -183,6 +199,7 @@ class GerbilizerGAN:
 
         gen_loss = self._gen_loss()
         mean_loss = torch.mean(gen_loss)
+        self.gen_optimizer.zero_grad()
         mean_loss.backward()
         self.gen_optimizer.step()
 
@@ -207,6 +224,8 @@ class GerbilizerGAN:
         else:
             if not isinstance(latent, Tensor):
                 latent_batch = torch.from_numpy(latent)
+            else:
+                latent_batch = latent
         if self.gpu:
             latent_batch = latent_batch.cuda()
         gen_data = self.generator(latent_batch)
@@ -237,13 +256,18 @@ class GerbilizerGAN:
         gp_losses = list()
         # Iterate at most `critic_steps` times through data_iterator
         for _, x_real in zip(range(self.critic_steps), data_iterator):
+            if len(x_real) < self.batch_size:
+                # Don't process incomplete batches
+                break
             latents = self.latent_sampler(self.batch_size)
             if self.gpu:
                 latents = latents.cuda()
+                x_real = x_real.cuda()
             x_gen = self.generator(latents)
             gp_loss = self._disc_gp_loss(x_real, x_gen)
             mean_loss = torch.mean(gp_loss)
             gp_losses.append(mean_loss.detach().cpu().item())
+            self.disc_optimizer.zero_grad()
             mean_loss.backward()
             self.disc_optimizer.step()
         if report_gp_loss_term:
@@ -275,19 +299,19 @@ class GerbilizerGAN:
 
         x_gen = eps * x_real + (1 - eps) * x_gen
         x_gen.requires_grad_()  # Gradients are takes w.r.t the interpolated data
-        disc_xgen = self.discriminator(x_gen)
+        prob_xgen = self.discriminator(x_gen)
 
         # Should have shape: (batch_size, n_mics, n_samples)
-        disc_grad = torch.empty_like(x_gen)
+        grad_output = torch.ones_like(prob_xgen)
         if self.gpu:
-            disc_grad = disc_grad.cuda()
+            grad_output = grad_output.cuda()
         
-        torch.autograd.grad(
-            disc_xgen,
+        disc_grad = torch.autograd.grad(
+            prob_xgen,
             x_gen,
-            disc_grad,
+            grad_output,
             create_graph=True  # Necessary to compute grads w.r.t model parameters later
-        )
+        )[0]
         disc_grad.requires_grad_()
 
         # Take the norm along the channels and samples axes,
@@ -296,5 +320,5 @@ class GerbilizerGAN:
         # Adding EPS for stability of the gradient
         grad_norm = torch.sqrt( torch.sum(disc_grad ** 2, dim=1) + EPS )
         gp_term = self.gp_coeff * (grad_norm - 1) ** 2
-        loss = disc_xgen - self.discriminator(x_real) + gp_term
+        loss = torch.squeeze(prob_xgen) - torch.squeeze(self.discriminator(x_real)) + gp_term
         return loss

@@ -4,62 +4,56 @@ from os import path
 import pathlib
 from typing import NewType
 
-import pandas as pd
+import h5py
 import numpy as np
 import torch
 from torch.utils.data import ConcatDataset, DataLoader, Dataset
 
 
-Path = NewType(str)
+Path = NewType('Path', str)
 
 
-class FeatherDataset(Dataset):
+class HDFDataset(Dataset):
     def __init__(self,
-        feather_path: Path,
-        index_path: Path
+        hdf_path: Path, *,
+        pad_len: int=16384
     ):
-        """ Creates a dataset to read audio from a .feather file, taking samples
-        from the provided index.
+        """ Creates a dataset to read audio from a .hdf file, using the index
+        embedded in the file
         """
-        if not path.exists(index_path):
-            raise ValueError(f"Failed to find index with path: {index_path}")
-        if not path.exists(feather_path):
-            raise ValueError(f"Failed to find dataframe with path {feather_path}")
+        if not path.exists(hdf_path):
+            raise ValueError(f"Failed to find dataset with path {hdf_path}")
 
-        self.index = np.load(index_path)
-        self.df = pd.read_feather(feather_path)
+        self.dset = h5py.File(hdf_path, 'r')
+        self.pad_len = pad_len
 
     def __len__(self) -> int:
-        return len(self.index)
+        # Len idx contains the starting indices of every vocalization and
+        # the endpoint of the final vocalization, so it has n + 1 elements
+        return len(self.dset['len_idx']) - 1
 
     def __getitem__(self, index: int) -> torch.Tensor:
-        return self.df['audio'].iloc[self.index[index]].astype(np.float32)
+        start, end = self.dset['len_idx'][index:index+2]
+        vox = self.dset['vocalizations'][start:end]
+        padded = np.zeros((1, self.pad_len), dtype=np.float32)
+        offset = np.random.randint(0, 2**12)
+        vox_len_clipped = min(self.pad_len, len(vox) + offset) - offset
+        padded[0, offset:min(self.pad_len, len(vox) + offset)] = vox[:vox_len_clipped]
+        return padded
 
 
 def create_dataloader(
-    feather_dir: Path,
-    index_dir: Path,
-    batch_size: int = 64,
-    num_workers: int = 2
+    hdf_path: Path,
+    batch_size: int = 64
 ) -> DataLoader:
-    """ Creates dataloaders from dataframes located in `feather_dir` as
-    .feather files and the corresponding indices, located in `index_dir`
+    """ Creates dataloaders from dataframes located in `hdf_dir` as
+    .hdf or .h5 files and the corresponding indices, located in `index_dir`
     with the same name, but a .npy extension.
     """
-    feather_files = sorted(glob.glob(feather_dir))
-    npy_names = [
-        pathlib.Path(fn).stem + '.npy'
-        for fn in feather_files
-    ]
-    index_files = [path.join(index_dir, fn) for fn in npy_names]
-    datasets = list()
-    for df_path, index_path in zip(feather_files, index_files):
-        datasets.append(FeatherDataset(df_path, index_path))
-    full_ds = ConcatDataset(datasets)
+    hdf_ds = HDFDataset(hdf_path)
 
     return DataLoader(
-        full_ds,
+        hdf_ds,
         batch_size=batch_size,
-        shuffle=True,
-        num_workers=num_workers
+        shuffle=True
     )

@@ -1,5 +1,4 @@
 {
-    "feather_dir": "/mnt/ceph/users/atanelus/unlabeled_vocalizations/c3",
-    "index_dir": "/mnt/ceph/users/atanelus/unlabeled_vocalizations/c3_idx",
+    "hdf_path": "/mnt/ceph/users/atanelus/unlabeled_vocalizations/c3/merged.h5",
     "device": "gpu"
 }

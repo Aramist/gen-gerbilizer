@@ -25,4 +25,4 @@ source ~/.bashrc
 conda activate vox
 srun python generative/train.py \
     $1 \
-    CFG_PATH
+    --config_path $CFG_PATH

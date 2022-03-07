@@ -13,7 +13,8 @@ then
     CFG_PATH=configs/local.json
 fi
 
+source ~/.zshrc
 conda activate vox
 python3 generative/train.py \
     $1 \
-    CFG_PATH
+    --config_path $CFG_PATH
