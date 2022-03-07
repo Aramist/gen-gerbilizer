@@ -81,7 +81,7 @@ class GerbilizerDiscriminator(nn.Module):
             working_audio = conv(working_audio)
             working_audio = self.nonlin(working_audio)
             if n < len(self.convs) - 1:
-                working_audio = _phase_shuffle(working_audio, 2)
+                working_audio = _phase_shuffle(working_audio, 8)
         reshaped = self.flatten(working_audio)
         output = self.dense(reshaped)
         return output
