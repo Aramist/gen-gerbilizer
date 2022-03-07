@@ -151,6 +151,9 @@ def run():
     os.makedirs(checkpoint_dir)
     os.makedirs(generated_sample_dir)
 
+    with open(path.join(model_dir, 'config.json'), 'w') as ctx:
+        json.dump(config, ctx)
+
     train_log_path = path.join(model_dir, 'train.log')
     logging.basicConfig(
         filename=train_log_path,
