@@ -157,7 +157,7 @@ def run():
     logging.info('Built models:')
     logging.info(str(model_wrapper.generator))
     logging.info(str(model_wrapper.discriminator))
-    logging.info(f"Training on {'gpu' if model.gpu else 'cpu'}")
+    logging.info(f"Training on {'gpu' if model_wrapper.gpu else 'cpu'}")
 
     train(config, model_wrapper, dataloader, checkpoint_dir, generated_sample_dir)
 
