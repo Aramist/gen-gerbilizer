@@ -2,16 +2,16 @@
     "device": "cpu",
     "batch_size": 64,
     "num_epochs": 20,
-    "checkpoint_frequency": 5,
+    "checkpoint_frequency": 1,
     "num_microphones": 1,
     
     "grad_penalty_weight": 10,
     "critic_steps_per_gen_step": 5,
     "learning_rate": 1e-4,
-    "adam_beta_1": 0.0,
+    "adam_beta_1": 0.5,
     "adam_beta_2": 0.9,
 
-    "dimensionality_multiplier": 2,
+    "dimensionality_multiplier": 64,
     "conv_kernel_size": 25,
     "latent_size": 128,
     "latent_prior": "normal"
