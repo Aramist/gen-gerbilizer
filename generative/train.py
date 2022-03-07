@@ -83,6 +83,13 @@ def populate_config(config: JSON):
     return config
 
 
+def query_gpu_memory():
+    total_mem = '{.2f}'.format( torch.cuda.get_device_properties(0).total_memory / 2**30 )
+    reserved = '{.2f}'.format( torch.cuda.memory_reserved(0) / 2**30 )
+    allocated = '{.2f}'.format( torch.cuda.memory_allocated(0) / 2**30 )
+    return f"Reserved GPU memory: {reserved}/{total_mem}GiB\tAllocated memory: {allocated}/{reserved}GiB"
+
+
 def train(config, model, dataloader, checkpoint_dir, sample_dir):
     logging.info('Starting training:')
     n_epochs = config['num_epochs']
@@ -98,12 +105,14 @@ def train(config, model, dataloader, checkpoint_dir, sample_dir):
         losses, epoch_complete = model.train_minibatch(data_iter)
         minibatch_no = 0
         while not epoch_complete:
-            logging.info(f'Discriminator losses (minibatch {minibatch_no + 1} of {len(data_iter)}')
+            logging.info(f'Discriminator losses (minibatch {minibatch_no} of {len(data_iter)}')
             fmt_losses = ['{:.5f}'.format(loss) for loss in losses['critic_losses']]
             logging.info(fmt_losses)
-            logging.info(f'Generator losses (minibatch {minibatch_no + 1} of {len(data_iter)}')
+            logging.info(f'Generator losses (minibatch {minibatch_no} of {len(data_iter)}')
             logging.info('{:.5f}'.format(losses['generator_loss']))
             minibatch_no += model.critic_steps
+            if model.gpu and (minibatch_no // model.critic_steps) % 5 == 0:
+                logging.info(query_gpu_memory())
             losses, epoch_complete = model.train_minibatch(data_iter)
             
         # Generate some samples to see how we are doing
