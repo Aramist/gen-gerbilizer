@@ -127,6 +127,10 @@ def train(config, model, dataloader, checkpoint_dir, sample_dir):
             ckpt_fname = 'checkpoint_epoch_{:0>3d}.pt'.format(n + 1)
             ckpt_path = path.join(checkpoint_dir, ckpt_fname)
             model.save_checkpoint(ckpt_path)
+    # Save final model
+    ckpt_fname = 'checkpoint_final.pt'
+    ckpt_path = path.join(checkpoint_dir, ckpt_fname)
+    model.save_checkpoint(ckpt_path)
 
 
 def run():
