@@ -1,5 +1,4 @@
 {
-    "hdf_path_": "/Users/aramis/Heap/audio_vae/data_c3/merged.h5",
-    "hdf_path": "/Users/aramis/Heap/audio_vae/data_c3/2020_09_07_10_04_02_461272_merged_feature_df.h5",
+    "hdf_path": "/Users/aramis/Heap/audio_vae/data_c3/merged.h5",
     "device": "cpu"
 }

@@ -99,9 +99,10 @@ def train(config, model, dataloader, checkpoint_dir, sample_dir):
         minibatch_no = 0
         while not epoch_complete:
             logging.info(f'Discriminator losses (minibatch {minibatch_no + 1} of {len(data_iter)}')
-            logging.info(losses['critic_losses'])
+            fmt_losses = ['{:.5f}'.format(loss) for loss in losses['critic_losses']]
+            logging.info(fmt_losses)
             logging.info(f'Generator losses (minibatch {minibatch_no + 1} of {len(data_iter)}')
-            logging.info(losses['generator_loss'])
+            logging.info('{:.5f}'.format(losses['generator_loss']))
             minibatch_no += model.critic_steps
             losses, epoch_complete = model.train_minibatch(data_iter)
             
