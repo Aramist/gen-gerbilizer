@@ -30,6 +30,7 @@ class HDFDataset(Dataset):
     def __len__(self) -> int:
         # Len idx contains the starting indices of every vocalization and
         # the endpoint of the final vocalization, so it has n + 1 elements
+        return 10000
         return len(self.dset['len_idx']) - 1
 
     def __getitem__(self, index: int) -> torch.Tensor:
