@@ -108,6 +108,48 @@ class GerbilizerDiscriminator(nn.Module):
         return output
         
 
+class GeneratorBlock(nn.Module):
+    """https://arxiv.org/pdf/1909.11646.pdf ?
+    """
+    def __init__(self, in_channels: int):
+        super().__init__()
+        self.upsample = nn.Upsample(scale_factor=4)
+        self.nonlin = nn.ReLU()
+
+        self.convs = nn.ModuleList([
+            nn.Conv1d(in_channels, in_channels // 2, 3, 1, dilation=1, padding='same'),
+            nn.Conv1d(in_channels // 2, in_channels // 2, 3, 1, dilation=2, padding='same'),
+            nn.Conv1d(in_channels // 2, in_channels // 2, 3, 1, dilation=4, padding='same'),
+            nn.Conv1d(in_channels // 2, in_channels // 2, 3, 1, dilation=8, padding='same')
+        ])
+
+        self.skip_conv = nn.Conv1d(in_channels, in_channels // 2, 1)
+        # self.second_skip_conv = nn.Conv1d(in_channels // 2, in_channels // 2, 1)
+
+        self.first_block = nn.Sequential(
+            self.nonlin,
+            self.upsample,
+            self.convs[0],
+            self.nonlin,
+            self.convs[1]
+        )
+
+        self.second_block = nn.Sequential(
+            self.nonlin,
+            self.convs[2],
+            self.nonlin,
+            self.convs[3]
+        )
+    
+    def forward(self, x):
+        skip_conn = self.skip_conv(self.upsample(x))
+        subblock_1 = self.first_block(x)
+        block_out = skip_conn + subblock_1
+
+        final_out = self.second_block(block_out) + block_out
+        return final_out
+
+
 class GerbilizerGenerator(nn.Module):
     def __init__(
         self,
@@ -120,42 +162,32 @@ class GerbilizerGenerator(nn.Module):
         latent_size = config['latent_size']
         # Ensures the number of channels used is divisible by 256
         multiplier = config['dimensionality_multiplier']
-        self.dense = nn.Linear(latent_size, 256 * multiplier)
+        self.dense = nn.Linear(latent_size, 512 * multiplier)
 
-        kernel_size = config['conv_kernel_size']
-        padding = config['conv_padding_size']
+        n_mics = config['num_microphones']
+
         channel_sizes = [
+            32 * multiplier,
             16 * multiplier,
             8 * multiplier,
             4 * multiplier,
             2 * multiplier,
-            1 * multiplier,
-            config['num_microphones']
         ]
         self.starting_channels = channel_sizes[0]
-        in_out_channels = zip(channel_sizes[:-1], channel_sizes[1:])
 
-        self.tconvs = nn.ModuleList()
-        for in_channels, out_channels in in_out_channels:
-            self.tconvs.append(
-                nn.ConvTranspose1d(
-                    in_channels=in_channels,
-                    out_channels=out_channels,
-                    kernel_size=kernel_size,
-                    padding=padding,
-                    output_padding=1,
-                    stride=4
-                )
-            )
+        self.blocks = nn.ModuleList()
+        for c_size in channel_sizes:
+            self.blocks.append(GeneratorBlock(c_size))
+
+        self.final_conv = nn.Conv1d(multiplier, n_mics, 3, dilation=2, padding='same')
     
     def forward(self, z: Tensor) -> Tensor:
         starting_audio = self.dense(z)
         # I think tensor.view might be applicable here
         working_audio = starting_audio.reshape((-1, self.starting_channels, 16))
-        for tlayer in self.tconvs:
-            rectified = F.relu(working_audio)
-            working_audio = tlayer(rectified)
-        output = torch.tanh(working_audio)
+        for block in self.blocks:
+            working_audio = block(working_audio)
+        output = torch.tanh(self.final_conv(working_audio))
         return output
 
 
