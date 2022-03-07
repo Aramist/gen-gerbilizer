@@ -50,6 +50,7 @@ class GerbilizerDiscriminator(nn.Module):
         self.nonlin = nn.LeakyReLU(negative_slope=0.2)
 
         kernel_size = config['conv_kernel_size']
+        padding = config['conv_padding_size']
         self.convs = nn.ModuleList()
         n_channels = [
             n_mics,
@@ -66,7 +67,7 @@ class GerbilizerDiscriminator(nn.Module):
                     in_channels,
                     out_channels,
                     kernel_size=kernel_size,
-                    padding=11,
+                    padding=padding,
                     stride=4
                 )
             )
@@ -101,6 +102,7 @@ class GerbilizerGenerator(nn.Module):
         self.dense = nn.Linear(latent_size, 256 * multiplier)
 
         kernel_size = config['conv_kernel_size']
+        padding = config['conv_padding_size']
         channel_sizes = [
             16 * multiplier,
             8 * multiplier,
@@ -119,7 +121,7 @@ class GerbilizerGenerator(nn.Module):
                     in_channels=in_channels,
                     out_channels=out_channels,
                     kernel_size=kernel_size,
-                    padding=11,
+                    padding=padding,
                     output_padding=1,
                     stride=4
                 )
