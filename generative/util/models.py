@@ -52,36 +52,57 @@ class GerbilizerDiscriminator(nn.Module):
         kernel_size = config['conv_kernel_size']
         padding = config['conv_padding_size']
         self.convs = nn.ModuleList()
-        n_channels = [
-            n_mics,
-            1 * multiplier,
-            2 * multiplier,
-            4 * multiplier,
-            8 * multiplier,
-            16 * multiplier,
-        ]
-        in_out_channels = zip(n_channels[:-1], n_channels[1:])
-        for in_channels, out_channels in in_out_channels:
+        self.nin = nn.ModuleList()
+
+        self.convs.append(
+            nn.Conv1d(
+                n_mics,
+                2 * multiplier,
+                kernel_size=kernel_size,
+                padding='same',
+                stride=1
+            )
+        )
+        self.nin.append(
+            nn.Conv1d(
+                2 * multiplier,
+                n_mics,
+                kernel_size=1,
+                padding='same'
+            )
+        )
+
+        for _ in range(9):
             self.convs.append(
                 nn.Conv1d(
-                    in_channels,
-                    out_channels,
+                    n_mics,
+                    2 * multiplier,
                     kernel_size=kernel_size,
-                    padding=padding,
-                    stride=4
+                    padding='same',
+                    stride=1
+                )
+            )
+            self.nin.append(
+                nn.Conv1d(
+                    2 * multiplier,
+                    n_mics,
+                    kernel_size=1,
+                    padding='same'
                 )
             )
 
         self.flatten = nn.Flatten()
-        self.dense = nn.Linear(256 * multiplier, 1)
+        self.dense = nn.Linear(n_mics * 16, 1)
 
     def forward(self, x: Tensor) -> Tensor:
         working_audio = x
-        for n, conv in enumerate(self.convs):
-            working_audio = conv(working_audio)
-            working_audio = self.nonlin(working_audio)
+        for n, (conv, nin) in enumerate(zip( self.convs, self.nin )):
+            convolved = conv(working_audio)
+            working_audio = working_audio + self.nonlin(convolved)
+            working_audio = nin(working_audio)
             if n < len(self.convs) - 1:
-                working_audio = _phase_shuffle(working_audio, 8)
+                working_audio = _phase_shuffle(working_audio, 2)
+            working_audio = F.max_pool1d(working_audio, kernel_size=2, stride=2)
         reshaped = self.flatten(working_audio)
         output = self.dense(reshaped)
         return output
