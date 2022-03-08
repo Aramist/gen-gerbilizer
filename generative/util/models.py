@@ -124,7 +124,7 @@ class GeneratorBlock(nn.Module):
         ])
 
         # self.skip_conv = nn.Conv1d(in_channels, out_channels, 1)
-        self.skip_conv = nn.Identity
+        self.skip_conv = nn.Identity()
         # self.second_skip_conv = nn.Conv1d(out_channels, out_channels, 1)
 
         self.first_block = nn.Sequential(
