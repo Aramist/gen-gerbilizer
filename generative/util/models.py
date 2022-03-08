@@ -114,7 +114,7 @@ class GeneratorBlock(nn.Module):
     def __init__(self, in_channels: int, filt_size):
         super().__init__()
         self.upsample = nn.Upsample(scale_factor=4)
-        self.nonlin = nn.ReLU()
+        self.nonlin = nn.LeakyReLU(negative_slope=0.2)
 
         self.convs = nn.ModuleList([
             nn.Conv1d(in_channels, in_channels // 2, filt_size, 1, dilation=1, padding='same'),
