@@ -111,20 +111,20 @@ class GerbilizerDiscriminator(nn.Module):
 class GeneratorBlock(nn.Module):
     """https://arxiv.org/pdf/1909.11646.pdf ?
     """
-    def __init__(self, in_channels: int, filt_size):
+    def __init__(self, in_channels: int, out_channels: int, filt_size: int):
         super().__init__()
-        self.upsample = nn.Upsample(scale_factor=4)
+        self.upsample = nn.Upsample(scale_factor=2)
         self.nonlin = nn.LeakyReLU(negative_slope=0.2)
 
         self.convs = nn.ModuleList([
-            nn.Conv1d(in_channels, in_channels // 2, filt_size, 1, dilation=1, padding='same'),
-            nn.Conv1d(in_channels // 2, in_channels // 2, filt_size, 1, dilation=2, padding='same'),
-            nn.Conv1d(in_channels // 2, in_channels // 2, filt_size, 1, dilation=4, padding='same'),
-            nn.Conv1d(in_channels // 2, in_channels // 2, filt_size, 1, dilation=8, padding='same')
+            nn.Conv1d(in_channels, out_channels, filt_size, 1, dilation=1, padding='same'),
+            nn.Conv1d(out_channels, out_channels, filt_size, 1, dilation=2, padding='same'),
+            nn.Conv1d(out_channels, out_channels, filt_size, 1, dilation=4, padding='same'),
+            nn.Conv1d(out_channels, out_channels, filt_size, 1, dilation=8, padding='same')
         ])
 
-        self.skip_conv = nn.Conv1d(in_channels, in_channels // 2, 1)
-        # self.second_skip_conv = nn.Conv1d(in_channels // 2, in_channels // 2, 1)
+        self.skip_conv = nn.Conv1d(in_channels, out_channels, 1)
+        # self.second_skip_conv = nn.Conv1d(out_channels, out_channels, 1)
 
         self.first_block = nn.Sequential(
             self.nonlin,
@@ -169,16 +169,22 @@ class GerbilizerGenerator(nn.Module):
 
         channel_sizes = [
             32 * multiplier,
+            32 * multiplier,
+            16 * multiplier,
             16 * multiplier,
             8 * multiplier,
+            8 * multiplier,
+            4 * multiplier,
             4 * multiplier,
             2 * multiplier,
+            2 * multiplier,
+            1 * multiplier
         ]
         self.starting_channels = channel_sizes[0]
 
         self.blocks = nn.ModuleList()
-        for c_size in channel_sizes:
-            self.blocks.append(GeneratorBlock(c_size, filt_size))
+        for in_size, out_size in zip(channel_sizes[:-1], channel_sizes[1:]):
+            self.blocks.append(GeneratorBlock(in_size, out_size, filt_size))
 
         self.final_conv = nn.Conv1d(multiplier, n_mics, filt_size, dilation=2, padding='same')
     
