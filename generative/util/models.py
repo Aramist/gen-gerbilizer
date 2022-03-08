@@ -117,13 +117,14 @@ class GeneratorBlock(nn.Module):
         self.nonlin = nn.LeakyReLU(negative_slope=0.2)
 
         self.convs = nn.ModuleList([
-            nn.Conv1d(in_channels, out_channels, filt_size, 1, dilation=1, padding='same'),
+            nn.Conv1d(out_channels, out_channels, filt_size, 1, dilation=1, padding='same'),
             nn.Conv1d(out_channels, out_channels, filt_size, 1, dilation=2, padding='same'),
             nn.Conv1d(out_channels, out_channels, filt_size, 1, dilation=4, padding='same'),
             nn.Conv1d(out_channels, out_channels, filt_size, 1, dilation=8, padding='same')
         ])
 
-        self.skip_conv = nn.Conv1d(in_channels, out_channels, 1)
+        # self.skip_conv = nn.Conv1d(in_channels, out_channels, 1)
+        self.skip_conv = nn.Identity
         # self.second_skip_conv = nn.Conv1d(out_channels, out_channels, 1)
 
         self.first_block = nn.Sequential(
@@ -170,15 +171,15 @@ class GerbilizerGenerator(nn.Module):
         channel_sizes = [
             32 * multiplier,
             32 * multiplier,
-            16 * multiplier,
-            16 * multiplier,
-            8 * multiplier,
-            8 * multiplier,
-            4 * multiplier,
-            4 * multiplier,
-            2 * multiplier,
-            2 * multiplier,
-            1 * multiplier
+            32 * multiplier,
+            32 * multiplier,
+            32 * multiplier,
+            32 * multiplier,
+            32 * multiplier,
+            32 * multiplier,
+            32 * multiplier,
+            32 * multiplier,
+            32 * multiplier
         ]
         self.starting_channels = channel_sizes[0]
 
@@ -186,7 +187,7 @@ class GerbilizerGenerator(nn.Module):
         for in_size, out_size in zip(channel_sizes[:-1], channel_sizes[1:]):
             self.blocks.append(GeneratorBlock(in_size, out_size, filt_size))
 
-        self.final_conv = nn.Conv1d(multiplier, n_mics, filt_size, dilation=2, padding='same')
+        self.final_conv = nn.Conv1d(channel_sizes[-1], n_mics, filt_size, dilation=2, padding='same')
     
     def forward(self, z: Tensor) -> Tensor:
         starting_audio = self.dense(z)
