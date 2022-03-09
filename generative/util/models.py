@@ -117,19 +117,18 @@ class GeneratorBlock(nn.Module):
         self.nonlin = nn.LeakyReLU(negative_slope=0.2)
 
         self.convs = nn.ModuleList([
-            nn.Conv1d(num_channels, num_channels, filt_size, 1, dilation=1, padding='same'),
+            nn.ConvTranspose1d(num_channels, num_channels, 51, stride=2, padding=100, output_padding=1, dilation=4),
             nn.Conv1d(num_channels, num_channels, filt_size, 1, dilation=2, padding='same'),
             nn.Conv1d(num_channels, num_channels, filt_size, 1, dilation=4, padding='same'),
             nn.Conv1d(num_channels, num_channels, filt_size, 1, dilation=8, padding='same')
         ])
 
-        # self.skip_conv = nn.Conv1d(in_channels, out_channels, 1)
+        # self.skip_conv = nn.Conv1d(in_channels, in_channels / , 1)
         self.skip_conv = nn.Identity()
         # self.second_skip_conv = nn.Conv1d(out_channels, out_channels, 1)
 
         self.first_block = nn.Sequential(
             # self.nonlin,
-            self.upsample,
             self.convs[0],
             self.nonlin,
             self.convs[1]
@@ -139,7 +138,8 @@ class GeneratorBlock(nn.Module):
             self.nonlin,
             self.convs[2],
             self.nonlin,
-            self.convs[3]
+            self.convs[3],
+            nn.Tanh()
         )
     
     def forward(self, x):
@@ -160,38 +160,28 @@ class GerbilizerGenerator(nn.Module):
         https://arxiv.org/pdf/1802.04208.pdf
         """
         super().__init__()
+        self.batch_size = config['batch_size']
         latent_size = config['latent_size']
         # Ensures the number of channels used is divisible by 256
         multiplier = config['dimensionality_multiplier']
-        self.dense = nn.Linear(latent_size, 32 * multiplier)
+        self.dense = nn.Linear(latent_size, 8 * 16 * multiplier)
 
         n_mics = config['num_microphones']
         filt_size = config['generator_conv_kernel_size']
 
-        channel_sizes = [
-            2 * multiplier,
-            2 * multiplier,
-            2 * multiplier,
-            2 * multiplier,
-            2 * multiplier,
-            2 * multiplier,
-            2 * multiplier,
-            2 * multiplier,
-            2 * multiplier,
-            2 * multiplier
-        ]
+        channel_sizes = [8, 8, 8, 8]
         self.starting_channels = channel_sizes[0]
 
         self.blocks = nn.ModuleList()
         for n_chans in channel_sizes:
             self.blocks.append(GeneratorBlock(n_chans, filt_size))
 
-        self.final_conv = nn.Conv1d(channel_sizes[-1], n_mics, filt_size, dilation=2, padding='same')
+        self.final_conv = nn.Conv1d(channel_sizes[-1], n_mics, filt_size, dilation=16, padding='same')
     
     def forward(self, z: Tensor) -> Tensor:
         starting_audio = self.dense(z)
         # I think tensor.view might be applicable here
-        working_audio = starting_audio.reshape((-1, self.starting_channels, 16))
+        working_audio = starting_audio.reshape((self.batch_size, self.starting_channels, -1))
         for block in self.blocks:
             working_audio = block(working_audio)
         output = torch.tanh(self.final_conv(working_audio))
