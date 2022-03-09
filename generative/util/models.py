@@ -170,7 +170,7 @@ class GerbilizerGenerator(nn.Module):
         filt_size = config['generator_conv_kernel_size']
 
         channel_sizes = [8, 8, 8, 8]
-        base_dilation = [2, 16, 32]
+        base_dilation = [2, 16, 32, 64]
         self.starting_channels = channel_sizes[0]
 
         self.blocks = nn.ModuleList()
