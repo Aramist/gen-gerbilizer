@@ -111,16 +111,16 @@ class GerbilizerDiscriminator(nn.Module):
 class GeneratorBlock(nn.Module):
     """https://arxiv.org/pdf/1909.11646.pdf ?
     """
-    def __init__(self, num_channels: int, filt_size: int):
+    def __init__(self, num_channels: int, filt_size: int, base_dilation: int):
         super().__init__()
         self.upsample = nn.Upsample(scale_factor=2)
         self.nonlin = nn.LeakyReLU(negative_slope=0.2)
 
         self.convs = nn.ModuleList([
             nn.ConvTranspose1d(num_channels, num_channels, 51, stride=2, padding=100, output_padding=1, dilation=4),
-            nn.Conv1d(num_channels, num_channels, filt_size, 1, dilation=2, padding='same'),
-            nn.Conv1d(num_channels, num_channels, filt_size, 1, dilation=4, padding='same'),
-            nn.Conv1d(num_channels, num_channels, filt_size, 1, dilation=8, padding='same')
+            nn.Conv1d(num_channels, num_channels, filt_size, 1, dilation=base_dilation, padding='same'),
+            nn.Conv1d(num_channels, num_channels, filt_size, 1, dilation=base_dilation*2, padding='same'),
+            nn.Conv1d(num_channels, num_channels, filt_size, 1, dilation=base_dilation*4, padding='same')
         ])
 
         # self.skip_conv = nn.Conv1d(in_channels, in_channels / , 1)
@@ -170,13 +170,14 @@ class GerbilizerGenerator(nn.Module):
         filt_size = config['generator_conv_kernel_size']
 
         channel_sizes = [8, 8, 8, 8]
+        base_dilation = [2, 16, 32]
         self.starting_channels = channel_sizes[0]
 
         self.blocks = nn.ModuleList()
-        for n_chans in channel_sizes:
-            self.blocks.append(GeneratorBlock(n_chans, filt_size))
+        for n_chans, dilation in zip(channel_sizes, base_dilation):
+            self.blocks.append(GeneratorBlock(n_chans, filt_size, dilation))
 
-        self.final_conv = nn.Conv1d(channel_sizes[-1], n_mics, filt_size, dilation=16, padding='same')
+        self.final_conv = nn.Conv1d(channel_sizes[-1], n_mics, filt_size, dilation=32, padding='same')
     
     def forward(self, z: Tensor) -> Tensor:
         starting_audio = self.dense(z)
